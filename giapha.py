@@ -4,11 +4,11 @@ import pandas as pd
 from datetime import datetime
 
 # Cấu hình trang
-st.set_page_config(page_title="Nhập Liệu Gia Phả", page_icon="📝")
+st.set_page_config(page_title="Gia Phả Lê Công", page_icon="📝")
 
 # Kết nối Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
-SHEET_URL = "[https://docs.google.com/spreadsheets/d/1vimdVQHFju63qniRp1XMXZW4unPTZkABw1ezYmo_MKI/edit?usp=sharing](https://docs.google.com/spreadsheets/d/1vimdVQHFju63qniRp1XMXZW4unPTZkABw1ezYmo_MKI/edit?usp=sharing)"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1vimdVQHFju63qniRp1XMXZW4unPTZkABw1ezYmo_MKI/edit?usp=sharing"
 
 def format_nam(nam_sinh, nam_mat):
     ns = str(nam_sinh).strip() if nam_sinh else ""
@@ -17,7 +17,13 @@ def format_nam(nam_sinh, nam_mat):
         return f"{ns} - {nm}"
     return ""
 
-st.title("📝 Kê Khai Thông Tin Gia Phả")
+# --- CHÈN HÌNH COVER VÀO ĐÂY ---
+try:
+    # Đảm bảo file hình nằm cùng thư mục với file code này
+    st.image("cover gia pha.jpg", use_container_width=True)
+except Exception:
+    # Đề phòng trường hợp chưa tải hình lên GitHub, web vẫn hiện chữ
+    st.title("📝 Kê Khai Thông Tin Gia Phả")
 
 with st.form("form_gia_pha"):
     st.subheader("1. Thông tin Người Kê Khai Chính")
