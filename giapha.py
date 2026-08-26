@@ -51,7 +51,15 @@ if not df_gia_pha.empty:
         if pd.notna(row.get("ID_Bạn đời")) and str(row.get("ID_Bạn đời")).strip() != "":
             edges.append(Edge(source=str(row["ID_Bạn đời"]), target=str(row["ID"]), label="Bạn đời", dashes=True))
 
-config = Config(width="100%", height=600, directed=True, physics=True, hierarchical=False)
+# Cấu hình Cây gia phả thẳng lối (Hierarchical Layout)
+config = Config(
+    width="100%", 
+    height=700, 
+    directed=True, 
+    physics=False,       # TẮT hiệu ứng trôi lơ lửng
+    hierarchical=True,   # BẬT chế độ xếp theo tầng (Gia phả)
+    direction="UD"       # Hướng từ Trên xuống Dưới (Up-Down)
+)
 
 if nodes:
     col1, col2 = st.columns([3, 1])
