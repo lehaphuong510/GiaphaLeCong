@@ -146,6 +146,17 @@ if submit and ten_chinh:
             })
             
     df_new = pd.DataFrame(data_raw)
+            
+    # 1. Thêm dòng này để XÓA SẠCH TRÍ NHỚ TRƯỚC KHI ĐỌC:
+    st.cache_data.clear() 
+            
+    # 2. Đọc dữ liệu mới nhất từ Sheet
+    df_existing = conn.read(spreadsheet=SHEET_URL, worksheet="Data Raw")
+    df_existing = df_existing.loc[:, ~df_existing.columns.str.contains('^Unnamed')]
+            
+    # 3. Ghi đè lên Sheet
+    conn.update(spreadsheet=SHEET_URL, worksheet="Data Raw", data=pd.concat([df_existing, df_new], ignore_index=True))
+    st.success("Đã ghi nhận! Ba hãy qua tab 'Duyệt Dữ Liệu' để đẩy chính thức lên cây nhé.")
     df_existing = conn.read(spreadsheet=SHEET_URL, worksheet="Data Raw", usecols=list(df_new.columns))
     conn.update(spreadsheet=SHEET_URL, worksheet="Data Raw", data=pd.concat([df_existing, df_new], ignore_index=True))
     st.success("Đã gửi thông tin thành công! Cảm ơn bạn đã đóng góp cho Gia phả.")
