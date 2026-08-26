@@ -78,7 +78,7 @@ if not st.session_state["admin_logged_in"]:
     
     # Bấm nút hoặc nhấn Enter đều ăn lệnh
     if st.sidebar.button("Đăng nhập") or pass_input:
-        if pass_input.strip() == "123456": # strip() để lỡ ba m gõ dư khoảng trắng vẫn nhận
+        if pass_input.strip() == "010663": # strip() để lỡ ba m gõ dư khoảng trắng vẫn nhận
             st.session_state["admin_logged_in"] = True
             st.rerun() # Tải lại trang để hiện menu Admin
         elif pass_input != "":
