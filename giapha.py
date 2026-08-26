@@ -171,9 +171,10 @@ if st.session_state["admin_logged_in"]:
         
         try:
             df_phu = conn.read(spreadsheet=SHEET_URL, worksheet="Data phụ")
-            vai_ve_options = df_phu["Vai vế"].dropna().tolist() + ["Tạo mới..."]
+            # Thêm chuỗi rỗng "" vào đầu tiên để mặc định là không chọn gì
+            vai_ve_options = [""] + df_phu["Vai vế"].dropna().tolist() + ["Tạo mới..."]
         except Exception:
-            vai_ve_options = ["VỢ", "CHỒNG", "VỢ KẾ", "Tạo mới..."]
+            vai_ve_options = ["", "VỢ", "CHỒNG", "VỢ KẾ", "Tạo mới..."]
             
         with st.form("form_admin_nhap"):
             st.subheader("1. Thông tin người trung tâm")
@@ -265,7 +266,7 @@ if st.session_state["admin_logged_in"]:
             
             for bd in ban_doi_list:
                 if bd["ten"]:
-                    vv_final = bd["vv_moi"].strip().upper() if bd["vv_chon"] == "Tạo mới..." and bd["vv_moi"] else bd["vv_chon"]
+                    vv_final = bd["vv_moi"].strip().upper() if bd["vv_chon"] == "Tạo mới..." and bd["vv_moi"] else str(bd["vv_chon"])
                     if bd["vv_chon"] == "Tạo mới..." and bd["vv_moi"]:
                         try:
                             df_phu_update = pd.concat([df_phu, pd.DataFrame([{"Vai vế": vv_final}])], ignore_index=True)
