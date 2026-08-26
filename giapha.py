@@ -103,7 +103,8 @@ if st.session_state["admin_logged_in"]:
             for batch in batches:
                 with st.expander(f"📦 Lô dữ liệu: {batch}"):
                     df_batch = df_cho_duyet[df_cho_duyet["Batch_ID"] == batch]
-                    st.dataframe(df_batch[["Họ tên", "Mối quan hệ với người chính", "Vai vế", "Giới tính", "Năm sinh - Năm mất"]])
+                    cols_to_show = [c for c in ["Họ tên", "Mối quan hệ với người chính", "Vai vế", "Giới tính", "Năm sinh - Năm mất"] if c in df_batch.columns]
+                    st.dataframe(df_batch[cols_to_show])
                     
                     if st.button("✅ Duyệt lô này", key=f"btn_{batch}"):
                         row_chinh = df_batch[df_batch["Mối quan hệ với người chính"] == "NGƯỜI CHÍNH"]
