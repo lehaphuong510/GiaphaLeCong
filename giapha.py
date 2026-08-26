@@ -70,6 +70,12 @@ else:
 # --- KHU VỰC ADMIN (CÓ PASS) ---
 st.sidebar.title("🔐 Dành cho Quản trị")
 
+# Nút cập nhật dữ liệu (Nằm ở Menu bên trái)
+if st.sidebar.button("🔄 CẬP NHẬT DỮ LIỆU MỚI NHẤT", use_container_width=True):
+    st.cache_data.clear() 
+    st.rerun()
+st.sidebar.markdown("---")
+
 if "admin_logged_in" not in st.session_state:
     st.session_state["admin_logged_in"] = False
 
@@ -88,7 +94,6 @@ if st.session_state["admin_logged_in"]:
         st.session_state["admin_logged_in"] = False
         st.rerun()
         
-    # Thêm lựa chọn "Chỉnh Sửa" vào Menu
     admin_menu = st.sidebar.radio("Chức năng", ["📋 Duyệt Dữ Liệu", "📝 Thêm Người Trực Tiếp", "✏️ Chỉnh Sửa Dữ Liệu"])
     
     if admin_menu == "📋 Duyệt Dữ Liệu":
@@ -173,7 +178,6 @@ if st.session_state["admin_logged_in"]:
         
         try:
             df_phu = conn.read(spreadsheet=SHEET_URL, worksheet="Data phụ")
-            # Thêm chuỗi rỗng "" vào đầu tiên để mặc định là không chọn gì
             vai_ve_options = [""] + df_phu["Vai vế"].dropna().tolist() + ["Tạo mới..."]
         except Exception:
             vai_ve_options = ["", "VỢ", "CHỒNG", "VỢ KẾ", "Tạo mới..."]
@@ -298,30 +302,26 @@ if st.session_state["admin_logged_in"]:
                     })
                     
             df_new = pd.DataFrame(data_raw)
-            df_existing = conn.read(spreadsheet=SHEET_URL, worksheet="Data Raw", usecols=list(df_new.columns))
+            # Khúc chống đạn ở đây, đã được sửa lại:
+            df_existing = conn.read(spreadsheet=SHEET_URL, worksheet="Data Raw")
+            df_existing = df_existing.loc[:, ~df_existing.columns.str.contains('^Unnamed')]
             conn.update(spreadsheet=SHEET_URL, worksheet="Data Raw", data=pd.concat([df_existing, df_new], ignore_index=True))
             st.success("Đã ghi nhận! Ba hãy qua tab 'Duyệt Dữ Liệu' để đẩy chính thức lên cây nhé.")
 
-    # --- THÊM ĐOẠN CODE NÀY XUỐNG DƯỚI CÙNG ---
     elif admin_menu == "✏️ Chỉnh Sửa Dữ Liệu":
         st.subheader("✏️ Bảng Chỉnh Sửa Thông Tin Nhanh")
         st.info("💡 Hướng dẫn: Click đúp vào ô bất kỳ để sửa. Sửa xong nhớ bấm nút 'Lưu thay đổi' ở bên dưới!")
         
         try:
-            # Kéo data hiện tại về
             df_hien_tai = conn.read(spreadsheet=SHEET_URL, worksheet="Data Gia Phả")
-            
-            # Hiển thị bảng cho phép chỉnh sửa trực tiếp (ẩn cột ID đi cho đỡ rối mắt)
             df_chinh_sua = st.data_editor(
                 df_hien_tai, 
                 use_container_width=True,
-                num_rows="dynamic", # Cho phép thêm/xóa dòng luôn nếu thích
-                disabled=["ID"] # Khóa cột ID lại, không cho sửa để tránh hỏng cây
+                num_rows="dynamic", 
+                disabled=["ID"] 
             )
             
-            # Nút lưu dữ liệu
             if st.button("💾 Lưu thay đổi"):
-                # Ghi đè dữ liệu mới lên Google Sheet
                 conn.update(spreadsheet=SHEET_URL, worksheet="Data Gia Phả", data=df_chinh_sua)
                 st.success("Đã cập nhật thay đổi thành công! Qua trang Cây Gia Phả để xem kết quả nha.")
                 st.rerun()
