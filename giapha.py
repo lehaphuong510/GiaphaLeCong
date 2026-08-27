@@ -51,15 +51,8 @@ if not df_gia_pha.empty:
         if pd.notna(row.get("ID_Bạn đời")) and str(row.get("ID_Bạn đời")).strip() != "":
             edges.append(Edge(source=str(row["ID_Bạn đời"]), target=str(row["ID"]), label="Bạn đời", dashes=True))
 
-# Cấu hình Cây gia phả thẳng lối (Hierarchical Layout)
-config = Config(
-    width="100%", 
-    height=700, 
-    directed=True, 
-    physics=False,       # TẮT hiệu ứng trôi lơ lửng
-    hierarchical=True,   # BẬT chế độ xếp theo tầng (Gia phả)
-    direction="UD"       # Hướng từ Trên xuống Dưới (Up-Down)
-)
+# Đã chỉnh cấu hình Cây gia phả xếp tầng (Hierarchical)
+config = Config(width="100%", height=700, directed=True, physics=False, hierarchical=True, direction="UD")
 
 if nodes:
     col1, col2 = st.columns([3, 1])
@@ -78,7 +71,6 @@ else:
 # --- KHU VỰC ADMIN (CÓ PASS) ---
 st.sidebar.title("🔐 Dành cho Quản trị")
 
-# Nút cập nhật dữ liệu (Nằm ở Menu bên trái)
 if st.sidebar.button("🔄 CẬP NHẬT DỮ LIỆU MỚI NHẤT", use_container_width=True):
     st.cache_data.clear() 
     st.rerun()
@@ -102,9 +94,158 @@ if st.session_state["admin_logged_in"]:
         st.session_state["admin_logged_in"] = False
         st.rerun()
         
-    admin_menu = st.sidebar.radio("Chức năng", ["📋 Duyệt Dữ Liệu", "📝 Thêm Người Trực Tiếp", "✏️ Chỉnh Sửa Dữ Liệu"])
+    # Đã đảo vị trí "Thêm Người Trực Tiếp" lên đầu tiên
+    admin_menu = st.sidebar.radio("Chức năng", ["📝 Thêm Người Trực Tiếp", "📋 Duyệt Dữ Liệu", "✏️ Chỉnh Sửa Dữ Liệu"])
     
-    if admin_menu == "📋 Duyệt Dữ Liệu":
+    if admin_menu == "📝 Thêm Người Trực Tiếp":
+        st.subheader("📝 THÊM NGƯỜI VÀO GIA PHẢ")
+        
+        try:
+            df_phu = conn.read(spreadsheet=SHEET_URL, worksheet="Data phụ")
+            vai_ve_options = [""] + df_phu["Vai vế"].dropna().tolist() + ["Tạo mới..."]
+        except Exception:
+            vai_ve_options = ["", "VỢ", "CHỒNG", "VỢ KẾ", "Tạo mới..."]
+
+        # Cơ chế Reset Form an toàn tuyệt đối
+        if "form_key" not in st.session_state:
+            st.session_state.form_key = 0
+        fk = st.session_state.form_key
+            
+        st.subheader("1. Thông tin người trung tâm")
+        ten_chinh = st.text_input("Họ Tên*", key=f"tc_{fk}")
+        gt_chinh = st.selectbox("Giới tính", ["NAM", "NỮ", "LGBTQ+"], key=f"gtc_{fk}")
+        c1, c2 = st.columns(2)
+        ns_chinh = c1.text_input("Năm sinh", placeholder="VD: 1950", key=f"nsc_{fk}")
+        nm_chinh = c2.text_input("Năm mất (nếu có, không rõ ghi 'Không rõ')", placeholder="VD: 2020 hoặc Không rõ", key=f"nmc_{fk}")
+        
+        st.markdown("---")
+        st.subheader("2. Thông tin Cha Mẹ Ruột")
+        ten_cha = st.text_input("Họ và Tên Cha", key=f"tcha_{fk}")
+        col_cha1, col_cha2 = st.columns(2)
+        ns_cha = col_cha1.text_input("Năm sinh Cha", key=f"nscha_{fk}")
+        nm_cha = col_cha2.text_input("Năm mất Cha (nếu có, không rõ ghi 'Không rõ')", key=f"nmcha_{fk}")
+        
+        ten_me = st.text_input("Họ và Tên Mẹ", key=f"tme_{fk}")
+        col_me1, col_me2 = st.columns(2)
+        ns_me = col_me1.text_input("Năm sinh Mẹ", key=f"nsme_{fk}")
+        nm_me = col_me2.text_input("Năm mất Mẹ (nếu có, không rõ ghi 'Không rõ')", key=f"nmme_{fk}")
+        
+        st.markdown("---")
+        st.subheader("3. Thông tin Bạn Đời")
+        so_luong_bd = st.number_input("Số lượng Bạn đời", 0, 5, 0, key=f"slbd_{fk}")
+        ban_doi_list = []
+        for i in range(so_luong_bd):
+            st.write(f"**Bạn đời {i+1}**")
+            t_bd = st.text_input(f"Họ tên Bạn đời {i+1}", key=f"tbd_{i}_{fk}")
+            gt_bd = st.selectbox(f"Giới tính Bạn đời {i+1}", ["NAM", "NỮ", "LGBTQ+"], key=f"gtbd_{i}_{fk}")
+            
+            col_vv1, col_vv2 = st.columns(2)
+            vv_chon = col_vv1.selectbox(f"Vai vế", vai_ve_options, key=f"vvc_{i}_{fk}")
+            vv_moi = col_vv2.text_input(f"Nếu tạo mới, nhập vào đây:", key=f"vvm_{i}_{fk}")
+            
+            c3, c4 = st.columns(2)
+            ns_bd = c3.text_input(f"Năm sinh Bạn đời {i+1}", key=f"nsbd_{i}_{fk}")
+            nm_bd = c4.text_input(f"Năm mất Bạn đời {i+1} (nếu có, không rõ ghi 'Không rõ')", key=f"nmbd_{i}_{fk}")
+            ban_doi_list.append({"ten": t_bd, "gt": gt_bd, "vv_chon": vv_chon, "vv_moi": vv_moi, "ns": ns_bd, "nm": nm_bd})
+            
+        st.markdown("---")
+        st.subheader("4. Thông tin Con Cái")
+        so_luong_con = st.number_input("Số lượng Con cái", 0, 15, 0, key=f"slc_{fk}")
+        con_cai_list = []
+        for i in range(so_luong_con):
+            st.write(f"**Con cái {i+1}**")
+            t_con = st.text_input(f"Họ tên Con {i+1}", key=f"tcon_{i}_{fk}")
+            gt_con = st.selectbox(f"Giới tính Con {i+1}", ["NAM", "NỮ", "LGBTQ+"], key=f"gtcon_{i}_{fk}")
+            
+            c5, c6 = st.columns(2)
+            ns_con = c5.text_input(f"Năm sinh Con {i+1}", key=f"nscon_{i}_{fk}")
+            nm_con = c6.text_input(f"Năm mất Con {i+1} (nếu có, không rõ ghi 'Không rõ')", key=f"nmcon_{i}_{fk}")
+            con_cai_list.append({"ten": t_con, "gt": gt_con, "ns": ns_con, "nm": nm_con})
+            
+        # Thay vì form_submit_button, chúng ta dùng nút bấm thông thường
+        submit_admin = st.button("🚀 Gửi dữ liệu")
+        
+        if submit_admin and ten_chinh:
+            batch_id = f"{datetime.now().strftime('%Y%m%d_%H%M')}_{ten_chinh.replace(' ', '').upper()}_ADMIN"
+            data_raw = []
+            
+            ns_c = str(ns_chinh).strip()
+            nm_c = str(nm_chinh).strip()
+            nam_chinh_str = f"{ns_c} - {nm_c}" if ns_c or nm_c else ""
+            
+            data_raw.append({
+                "Batch_ID": batch_id, "Họ tên": ten_chinh.strip().upper(), "Giới tính": gt_chinh,
+                "Năm sinh - Năm mất": nam_chinh_str, "Mối quan hệ với người chính": "NGƯỜI CHÍNH",
+                "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
+            })
+            
+            if ten_cha:
+                ns_cha_str = str(ns_cha).strip()
+                nm_cha_str = str(nm_cha).strip()
+                nam_cha_final = f"{ns_cha_str} - {nm_cha_str}" if ns_cha_str or nm_cha_str else ""
+                data_raw.append({
+                    "Batch_ID": batch_id, "Họ tên": ten_cha.strip().upper(), "Giới tính": "NAM",
+                    "Năm sinh - Năm mất": nam_cha_final, "Mối quan hệ với người chính": "CHA", 
+                    "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
+                })
+                
+            if ten_me:
+                ns_me_str = str(ns_me).strip()
+                nm_me_str = str(nm_me).strip()
+                nam_me_final = f"{ns_me_str} - {nm_me_str}" if ns_me_str or nm_me_str else ""
+                data_raw.append({
+                    "Batch_ID": batch_id, "Họ tên": ten_me.strip().upper(), "Giới tính": "NỮ",
+                    "Năm sinh - Năm mất": nam_me_final, "Mối quan hệ với người chính": "MẸ", 
+                    "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
+                })
+            
+            for bd in ban_doi_list:
+                if bd["ten"]:
+                    vv_final = bd["vv_moi"].strip().upper() if bd["vv_chon"] == "Tạo mới..." and bd["vv_moi"] else str(bd["vv_chon"])
+                    if bd["vv_chon"] == "Tạo mới..." and bd["vv_moi"]:
+                        try:
+                            df_phu_update = pd.concat([df_phu, pd.DataFrame([{"Vai vế": vv_final}])], ignore_index=True)
+                            conn.update(spreadsheet=SHEET_URL, worksheet="Data phụ", data=df_phu_update)
+                        except Exception: 
+                            pass
+                        
+                    ns_b = str(bd['ns']).strip()
+                    nm_b = str(bd['nm']).strip()
+                    nam_bd_str = f"{ns_b} - {nm_b}" if ns_b or nm_b else ""
+                    
+                    data_raw.append({
+                        "Batch_ID": batch_id, "Họ tên": bd["ten"].strip().upper(), "Giới tính": bd["gt"],
+                        "Vai vế": vv_final, "Năm sinh - Năm mất": nam_bd_str,
+                        "Mối quan hệ với người chính": "BẠN ĐỜI", "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
+                    })
+                    
+            for con in con_cai_list:
+                if con["ten"]:
+                    ns_con_str = str(con['ns']).strip()
+                    nm_con_str = str(con['nm']).strip()
+                    nam_con_final = f"{ns_con_str} - {nm_con_str}" if ns_con_str or nm_con_str else ""
+                    data_raw.append({
+                        "Batch_ID": batch_id, "Họ tên": con["ten"].strip().upper(), "Giới tính": con["gt"],
+                        "Năm sinh - Năm mất": nam_con_final, "Mối quan hệ với người chính": "CON", 
+                        "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
+                    })
+                    
+            df_new = pd.DataFrame(data_raw)
+            
+            st.cache_data.clear()
+            df_existing = conn.read(spreadsheet=SHEET_URL, worksheet="Data Raw")
+            df_existing = df_existing.loc[:, ~df_existing.columns.str.contains('^Unnamed')]
+            conn.update(spreadsheet=SHEET_URL, worksheet="Data Raw", data=pd.concat([df_existing, df_new], ignore_index=True))
+            
+            # Reset Form sau khi thành công
+            st.session_state.form_key += 1
+            st.success("Đã ghi nhận! Ba hãy qua tab 'Duyệt Dữ Liệu' để đẩy chính thức lên cây nhé.")
+            st.rerun()
+            
+        elif submit_admin and not ten_chinh:
+            st.error("Vui lòng điền Họ tên người trung tâm!")
+
+    elif admin_menu == "📋 Duyệt Dữ Liệu":
         st.subheader("📋 Danh sách chờ duyệt")
         df_raw = conn.read(spreadsheet=SHEET_URL, worksheet="Data Raw")
         df_cho_duyet = df_raw[df_raw["Trạng Thái"] == "Chờ duyệt"]
@@ -180,152 +321,6 @@ if st.session_state["admin_logged_in"]:
                             
                             st.success("Đã duyệt thành công và cấp ID tự động!")
                             st.rerun()
-
-    elif admin_menu == "📝 Thêm Người Trực Tiếp":
-        st.subheader("📝 THÊM NGƯỜI VÀO GIA PHẢ")
-        
-        try:
-            df_phu = conn.read(spreadsheet=SHEET_URL, worksheet="Data phụ")
-            vai_ve_options = [""] + df_phu["Vai vế"].dropna().tolist() + ["Tạo mới..."]
-        except Exception:
-            vai_ve_options = ["", "VỢ", "CHỒNG", "VỢ KẾ", "Tạo mới..."]
-            
-        with st.form("form_admin_nhap"):
-            st.subheader("1. Thông tin người trung tâm")
-            ten_chinh = st.text_input("Họ Tên*")
-            gt_chinh = st.selectbox("Giới tính", ["NAM", "NỮ", "LGBTQ+"], key="gt_c_admin")
-            c1, c2 = st.columns(2)
-            ns_chinh = c1.text_input("Năm sinh", placeholder="VD: 1950")
-            nm_chinh = c2.text_input("Năm mất (nếu có, không rõ ghi 'Không rõ')", placeholder="VD: 2020 hoặc Không rõ")
-            
-            st.markdown("---")
-            st.subheader("2. Thông tin Cha Mẹ Ruột")
-            ten_cha = st.text_input("Họ và Tên Cha")
-            col_cha1, col_cha2 = st.columns(2)
-            ns_cha = col_cha1.text_input("Năm sinh Cha")
-            nm_cha = col_cha2.text_input("Năm mất Cha (nếu có, không rõ ghi 'Không rõ')")
-            
-            ten_me = st.text_input("Họ và Tên Mẹ")
-            col_me1, col_me2 = st.columns(2)
-            ns_me = col_me1.text_input("Năm sinh Mẹ")
-            nm_me = col_me2.text_input("Năm mất Mẹ (nếu có, không rõ ghi 'Không rõ')")
-            
-            st.markdown("---")
-            st.subheader("3. Thông tin Bạn Đời")
-            so_luong_bd = st.number_input("Số lượng Bạn đời", 0, 5, 0)
-            ban_doi_list = []
-            for i in range(so_luong_bd):
-                st.write(f"**Bạn đời {i+1}**")
-                t_bd = st.text_input(f"Họ tên Bạn đời {i+1}")
-                gt_bd = st.selectbox(f"Giới tính Bạn đời {i+1}", ["NAM", "NỮ", "LGBTQ+"], key=f"gt_bd_admin_{i}")
-                
-                col_vv1, col_vv2 = st.columns(2)
-                vv_chon = col_vv1.selectbox(f"Vai vế", vai_ve_options, key=f"vv_chon_admin_{i}")
-                vv_moi = col_vv2.text_input(f"Nếu tạo mới, nhập vào đây:", key=f"vv_moi_admin_{i}")
-                
-                c3, c4 = st.columns(2)
-                ns_bd = c3.text_input(f"Năm sinh Bạn đời {i+1}")
-                nm_bd = c4.text_input(f"Năm mất Bạn đời {i+1} (nếu có, không rõ ghi 'Không rõ')")
-                ban_doi_list.append({"ten": t_bd, "gt": gt_bd, "vv_chon": vv_chon, "vv_moi": vv_moi, "ns": ns_bd, "nm": nm_bd})
-                
-            st.markdown("---")
-            st.subheader("4. Thông tin Con Cái")
-            so_luong_con = st.number_input("Số lượng Con cái", 0, 15, 0)
-            con_cai_list = []
-            for i in range(so_luong_con):
-                st.write(f"**Con cái {i+1}**")
-                t_con = st.text_input(f"Họ tên Con {i+1}")
-                gt_con = st.selectbox(f"Giới tính Con {i+1}", ["NAM", "NỮ", "LGBTQ+"], key=f"gt_con_admin_{i}")
-                
-                c5, c6 = st.columns(2)
-                ns_con = c5.text_input(f"Năm sinh Con {i+1}")
-                nm_con = c6.text_input(f"Năm mất Con {i+1} (nếu có, không rõ ghi 'Không rõ')")
-                con_cai_list.append({"ten": t_con, "gt": gt_con, "ns": ns_con, "nm": nm_con})
-                
-            submit_admin = st.form_submit_button("🚀 Gửi dữ liệu")
-            
-        if submit_admin and ten_chinh:
-            batch_id = f"{datetime.now().strftime('%Y%m%d_%H%M')}_{ten_chinh.replace(' ', '').upper()}_ADMIN"
-            data_raw = []
-            
-            ns_c = str(ns_chinh).strip()
-            nm_c = str(nm_chinh).strip()
-            nam_chinh_str = f"{ns_c} - {nm_c}" if ns_c or nm_c else ""
-            
-            data_raw.append({
-                "Batch_ID": batch_id, "Họ tên": ten_chinh.strip().upper(), "Giới tính": gt_chinh,
-                "Năm sinh - Năm mất": nam_chinh_str, "Mối quan hệ với người chính": "NGƯỜI CHÍNH",
-                "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
-            })
-            
-            if ten_cha:
-                ns_cha_str = str(ns_cha).strip()
-                nm_cha_str = str(nm_cha).strip()
-                nam_cha_final = f"{ns_cha_str} - {nm_cha_str}" if ns_cha_str or nm_cha_str else ""
-                data_raw.append({
-                    "Batch_ID": batch_id, "Họ tên": ten_cha.strip().upper(), "Giới tính": "NAM",
-                    "Năm sinh - Năm mất": nam_cha_final, "Mối quan hệ với người chính": "CHA", 
-                    "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
-                })
-                
-            if ten_me:
-                ns_me_str = str(ns_me).strip()
-                nm_me_str = str(nm_me).strip()
-                nam_me_final = f"{ns_me_str} - {nm_me_str}" if ns_me_str or nm_me_str else ""
-                data_raw.append({
-                    "Batch_ID": batch_id, "Họ tên": ten_me.strip().upper(), "Giới tính": "NỮ",
-                    "Năm sinh - Năm mất": nam_me_final, "Mối quan hệ với người chính": "MẸ", 
-                    "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
-                })
-            
-            for bd in ban_doi_list:
-                if bd["ten"]:
-                    vv_final = bd["vv_moi"].strip().upper() if bd["vv_chon"] == "Tạo mới..." and bd["vv_moi"] else str(bd["vv_chon"])
-                    if bd["vv_chon"] == "Tạo mới..." and bd["vv_moi"]:
-                        try:
-                            df_phu_update = pd.concat([df_phu, pd.DataFrame([{"Vai vế": vv_final}])], ignore_index=True)
-                            conn.update(spreadsheet=SHEET_URL, worksheet="Data phụ", data=df_phu_update)
-                        except Exception: 
-                            pass
-                        
-                    ns_b = str(bd['ns']).strip()
-                    nm_b = str(bd['nm']).strip()
-                    nam_bd_str = f"{ns_b} - {nm_b}" if ns_b or nm_b else ""
-                    
-                    data_raw.append({
-                        "Batch_ID": batch_id, "Họ tên": bd["ten"].strip().upper(), "Giới tính": bd["gt"],
-                        "Vai vế": vv_final, "Năm sinh - Năm mất": nam_bd_str,
-                        "Mối quan hệ với người chính": "BẠN ĐỜI", "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
-                    })
-                    
-            for con in con_cai_list:
-                if con["ten"]:
-                    ns_con_str = str(con['ns']).strip()
-                    nm_con_str = str(con['nm']).strip()
-                    nam_con_final = f"{ns_con_str} - {nm_con_str}" if ns_con_str or nm_con_str else ""
-                    data_raw.append({
-                        "Batch_ID": batch_id, "Họ tên": con["ten"].strip().upper(), "Giới tính": con["gt"],
-                        "Năm sinh - Năm mất": nam_con_final, "Mối quan hệ với người chính": "CON", 
-                        "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
-                    })
-                    
-            df_new = pd.DataFrame(data_raw)
-            
-            # 1. Thêm dòng này để XÓA SẠCH TRÍ NHỚ TRƯỚC KHI ĐỌC:
-            st.cache_data.clear() 
-            
-            # 2. Đọc dữ liệu mới nhất từ Sheet
-            df_existing = conn.read(spreadsheet=SHEET_URL, worksheet="Data Raw")
-            df_existing = df_existing.loc[:, ~df_existing.columns.str.contains('^Unnamed')]
-            
-            # 3. Ghi đè lên Sheet
-            conn.update(spreadsheet=SHEET_URL, worksheet="Data Raw", data=pd.concat([df_existing, df_new], ignore_index=True))
-            st.success("Đã ghi nhận! Ba hãy qua tab 'Duyệt Dữ Liệu' để đẩy chính thức lên cây nhé.")
-            # Khúc chống đạn ở đây, đã được sửa lại:
-            df_existing = conn.read(spreadsheet=SHEET_URL, worksheet="Data Raw")
-            df_existing = df_existing.loc[:, ~df_existing.columns.str.contains('^Unnamed')]
-            conn.update(spreadsheet=SHEET_URL, worksheet="Data Raw", data=pd.concat([df_existing, df_new], ignore_index=True))
-            st.success("Đã ghi nhận! Ba hãy qua tab 'Duyệt Dữ Liệu' để đẩy chính thức lên cây nhé.")
 
     elif admin_menu == "✏️ Chỉnh Sửa Dữ Liệu":
         st.subheader("✏️ Bảng Chỉnh Sửa Thông Tin Nhanh")
