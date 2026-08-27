@@ -46,7 +46,6 @@ if not df_gia_pha.empty:
             
         nodes.append(Node(id=str(row["ID"]), label=label, color=color, shape="box"))
         
-        # Cải tiến: Vẽ đường từ cả Cha và Mẹ
         if pd.notna(row.get("ID_Cha")) and str(row.get("ID_Cha")).strip() != "":
             edges.append(Edge(source=str(row["ID_Cha"]), target=str(row["ID"]), label="Cha"))
         if pd.notna(row.get("ID_Mẹ")) and str(row.get("ID_Mẹ")).strip() != "":
@@ -54,7 +53,6 @@ if not df_gia_pha.empty:
         if pd.notna(row.get("ID_Bạn đời")) and str(row.get("ID_Bạn đời")).strip() != "":
             edges.append(Edge(source=str(row["ID_Bạn đời"]), target=str(row["ID"]), label="Bạn đời", dashes=True))
 
-# Cấu hình Cây gia phả thẳng lối (Hierarchical Layout)
 config = Config(width="100%", height=700, directed=True, physics=False, hierarchical=True, direction="UD")
 
 if nodes:
@@ -124,19 +122,19 @@ if st.session_state["admin_logged_in"]:
         ten_cha = st.text_input("Họ và Tên Cha", key=f"tcha_{fk}")
         col_cha1, col_cha2 = st.columns(2)
         ns_cha = col_cha1.text_input("Năm sinh Cha", key=f"nscha_{fk}")
-        nm_cha = col_cha2.text_input("Năm mất Cha (nếu có, không rõ ghi 'Không rõ')", key=f"nmcha_{fk}")
+        nm_cha = col_cha2.text_input("Năm mất Cha (nếu có)", key=f"nmcha_{fk}")
         
         ten_me = st.text_input("Họ và Tên Mẹ", key=f"tme_{fk}")
         col_me1, col_me2 = st.columns(2)
         ns_me = col_me1.text_input("Năm sinh Mẹ", key=f"nsme_{fk}")
-        nm_me = col_me2.text_input("Năm mất Mẹ (nếu có, không rõ ghi 'Không rõ')", key=f"nmme_{fk}")
+        nm_me = col_me2.text_input("Năm mất Mẹ (nếu có)", key=f"nmme_{fk}")
         
         st.markdown("---")
-        st.subheader("3. Thông tin Bạn Đời")
+        st.subheader("3. Thông tin Bạn Đời & Con Chung")
         so_luong_bd = st.number_input("Số lượng Bạn đời", 0, 5, 0, key=f"slbd_{fk}")
         ban_doi_list = []
         for i in range(so_luong_bd):
-            st.write(f"**Bạn đời {i+1}**")
+            st.markdown(f"#### 👩‍❤️‍👨 Bạn đời {i+1}")
             t_bd = st.text_input(f"Họ tên Bạn đời {i+1}", key=f"tbd_{i}_{fk}")
             gt_bd = st.selectbox(f"Giới tính Bạn đời {i+1}", ["NAM", "NỮ", "LGBTQ+"], key=f"gtbd_{i}_{fk}")
             
@@ -146,28 +144,41 @@ if st.session_state["admin_logged_in"]:
             
             c3, c4 = st.columns(2)
             ns_bd = c3.text_input(f"Năm sinh Bạn đời {i+1}", key=f"nsbd_{i}_{fk}")
-            nm_bd = c4.text_input(f"Năm mất Bạn đời {i+1} (nếu có, không rõ ghi 'Không rõ')", key=f"nmbd_{i}_{fk}")
-            ban_doi_list.append({"ten": t_bd, "gt": gt_bd, "vv_chon": vv_chon, "vv_moi": vv_moi, "ns": ns_bd, "nm": nm_bd})
+            nm_bd = c4.text_input(f"Năm mất Bạn đời {i+1} (nếu có)", key=f"nmbd_{i}_{fk}")
             
-        st.markdown("---")
-        st.subheader("4. Thông tin Con Cái")
-        so_luong_con = st.number_input("Số lượng Con cái", 0, 15, 0, key=f"slc_{fk}")
-        con_cai_list = []
-        for i in range(so_luong_con):
-            st.write(f"**Con cái {i+1}**")
-            t_con = st.text_input(f"Họ tên Con {i+1}", key=f"tcon_{i}_{fk}")
-            gt_con = st.selectbox(f"Giới tính Con {i+1}", ["NAM", "NỮ", "LGBTQ+"], key=f"gtcon_{i}_{fk}")
+            st.markdown(f"**👶 Con chung với Bạn đời {i+1}**")
+            sl_con_chung = st.number_input(f"Số lượng con chung", 0, 15, 0, key=f"slcc_{i}_{fk}")
+            con_chung_list = []
+            for j in range(sl_con_chung):
+                c_col1, c_col2 = st.columns(2)
+                t_con = c_col1.text_input(f"Tên con {j+1}", key=f"tcc_{i}_{j}_{fk}")
+                gt_con = c_col2.selectbox(f"Giới tính con {j+1}", ["NAM", "NỮ", "LGBTQ+"], key=f"gtcc_{i}_{j}_{fk}")
+                
+                c_col3, c_col4 = st.columns(2)
+                ns_con = c_col3.text_input(f"Năm sinh con {j+1}", key=f"nscc_{i}_{j}_{fk}")
+                nm_con = c_col4.text_input(f"Năm mất con {j+1} (nếu có)", key=f"nmcc_{i}_{j}_{fk}")
+                con_chung_list.append({"ten": t_con, "gt": gt_con, "ns": ns_con, "nm": nm_con})
+                
+            ban_doi_list.append({
+                "ten": t_bd, "gt": gt_bd, "vv_chon": vv_chon, "vv_moi": vv_moi, 
+                "ns": ns_bd, "nm": nm_bd, "con_chung": con_chung_list
+            })
+            st.write("---")
             
-            if so_luong_bd > 0:
-                bd_opts = ["Chỉ của người chính / Không rõ"] + [f"Bạn đời {k+1}" for k in range(so_luong_bd)]
-                chon_bd_con = st.selectbox("Là con chung với:", bd_opts, key=f"con_bd_{i}_{fk}")
-            else:
-                chon_bd_con = "Chỉ của người chính / Không rõ"
-            
+        st.subheader("4. Thông tin Con Riêng (Của người trung tâm)")
+        st.info("Chỉ điền mục này nếu người trung tâm có con riêng nhưng KHÔNG khai báo Bạn đời ở mục 3.")
+        so_luong_con_rieng = st.number_input("Số lượng Con riêng", 0, 15, 0, key=f"slcr_{fk}")
+        con_rieng_list = []
+        for i in range(so_luong_con_rieng):
+            st.write(f"**Con riêng {i+1}**")
             c5, c6 = st.columns(2)
-            ns_con = c5.text_input(f"Năm sinh Con {i+1}", key=f"nscon_{i}_{fk}")
-            nm_con = c6.text_input(f"Năm mất Con {i+1} (nếu có, không rõ ghi 'Không rõ')", key=f"nmcon_{i}_{fk}")
-            con_cai_list.append({"ten": t_con, "gt": gt_con, "ns": ns_con, "nm": nm_con, "chon_bd": chon_bd_con})
+            t_con = c5.text_input(f"Họ tên Con {i+1}", key=f"tconr_{i}_{fk}")
+            gt_con = c6.selectbox(f"Giới tính Con {i+1}", ["NAM", "NỮ", "LGBTQ+"], key=f"gtconr_{i}_{fk}")
+            
+            c7, c8 = st.columns(2)
+            ns_con = c7.text_input(f"Năm sinh Con {i+1}", key=f"nsconr_{i}_{fk}")
+            nm_con = c8.text_input(f"Năm mất Con {i+1} (nếu có)", key=f"nmconr_{i}_{fk}")
+            con_rieng_list.append({"ten": t_con, "gt": gt_con, "ns": ns_con, "nm": nm_con})
             
         submit_admin = st.button("🚀 Gửi dữ liệu")
         
@@ -205,7 +216,7 @@ if st.session_state["admin_logged_in"]:
                     "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
                 })
             
-            for bd in ban_doi_list:
+            for bd_idx, bd in enumerate(ban_doi_list):
                 if bd["ten"]:
                     vv_final = bd["vv_moi"].strip().upper() if bd["vv_chon"] == "Tạo mới..." and bd["vv_moi"] else str(bd["vv_chon"])
                     if bd["vv_chon"] == "Tạo mới..." and bd["vv_moi"]:
@@ -225,25 +236,30 @@ if st.session_state["admin_logged_in"]:
                         "Mối quan hệ với người chính": "BẠN ĐỜI", "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
                     })
                     
-            for con in con_cai_list:
+                    for con in bd["con_chung"]:
+                        if con["ten"]:
+                            ns_con_str = str(con['ns']).strip()
+                            nm_con_str = str(con['nm']).strip()
+                            nam_con_final = f"{ns_con_str} - {nm_con_str}" if ns_con_str or nm_con_str else ""
+                            
+                            data_raw.append({
+                                "Batch_ID": batch_id, "Họ tên": con["ten"].strip().upper(), "Giới tính": con["gt"],
+                                "Năm sinh - Năm mất": nam_con_final, "Mối quan hệ với người chính": f"CON_BD{bd_idx+1}", 
+                                "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
+                            })
+                            
+            for con in con_rieng_list:
                 if con["ten"]:
                     ns_con_str = str(con['ns']).strip()
                     nm_con_str = str(con['nm']).strip()
                     nam_con_final = f"{ns_con_str} - {nm_con_str}" if ns_con_str or nm_con_str else ""
-                    
-                    mqh_con = "CON"
-                    if con["chon_bd"].startswith("Bạn đời"):
-                        bd_idx = con["chon_bd"].split(" ")[2]
-                        mqh_con = f"CON_BD{bd_idx}"
-                        
                     data_raw.append({
                         "Batch_ID": batch_id, "Họ tên": con["ten"].strip().upper(), "Giới tính": con["gt"],
-                        "Năm sinh - Năm mất": nam_con_final, "Mối quan hệ với người chính": mqh_con, 
+                        "Năm sinh - Năm mất": nam_con_final, "Mối quan hệ với người chính": "CON", 
                         "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
                     })
                     
             df_new = pd.DataFrame(data_raw)
-            
             st.cache_data.clear()
             df_existing = conn.read(spreadsheet=SHEET_URL, worksheet="Data Raw")
             df_existing = df_existing.loc[:, ~df_existing.columns.str.contains('^Unnamed')]
@@ -296,7 +312,7 @@ if st.session_state["admin_logged_in"]:
                                 idx_chinh = df_gia_pha.index[-1]
                             
                             new_records = []
-                            spouse_ids = {} # Bộ nhớ lưu ID của các bà vợ/chồng
+                            spouse_ids = {}
                             bd_count = 1
                             
                             for _, row in df_batch.iterrows():
@@ -318,19 +334,16 @@ if st.session_state["admin_logged_in"]:
                                     df_gia_pha.at[idx_chinh, "ID_Mẹ"] = new_id
                                 elif mqh == "BẠN ĐỜI":
                                     new_record["ID_Bạn đời"] = main_id
-                                    # Ghi nhớ ID của bà vợ thứ 1, 2, 3...
                                     spouse_ids[f"BD{bd_count}"] = {"id": new_id, "gt": row["Giới tính"]}
                                     bd_count += 1
                                 elif mqh.startswith("CON"):
-                                    # Mặc định luôn là con của Người Chính
                                     if gt_chinh == "NAM":
                                         new_record["ID_Cha"] = main_id
                                     elif gt_chinh == "NỮ":
                                         new_record["ID_Mẹ"] = main_id
                                         
-                                    # Thuật toán tìm đúng Mẹ/Cha thứ 2
-                                    if "_" in mqh: # Ví dụ: CON_BD1
-                                        bd_key = mqh.split("_")[1] # Tách lấy chữ BD1
+                                    if "_" in mqh: 
+                                        bd_key = mqh.split("_")[1] 
                                         if bd_key in spouse_ids:
                                             sp_id = spouse_ids[bd_key]["id"]
                                             sp_gt = spouse_ids[bd_key]["gt"]
