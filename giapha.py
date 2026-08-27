@@ -46,12 +46,15 @@ if not df_gia_pha.empty:
             
         nodes.append(Node(id=str(row["ID"]), label=label, color=color, shape="box"))
         
+        # Cải tiến: Vẽ đường từ cả Cha và Mẹ
         if pd.notna(row.get("ID_Cha")) and str(row.get("ID_Cha")).strip() != "":
-            edges.append(Edge(source=str(row["ID_Cha"]), target=str(row["ID"]), label="Cha - Con"))
+            edges.append(Edge(source=str(row["ID_Cha"]), target=str(row["ID"]), label="Cha"))
+        if pd.notna(row.get("ID_Mẹ")) and str(row.get("ID_Mẹ")).strip() != "":
+            edges.append(Edge(source=str(row["ID_Mẹ"]), target=str(row["ID"]), label="Mẹ"))
         if pd.notna(row.get("ID_Bạn đời")) and str(row.get("ID_Bạn đời")).strip() != "":
             edges.append(Edge(source=str(row["ID_Bạn đời"]), target=str(row["ID"]), label="Bạn đời", dashes=True))
 
-# Đã chỉnh cấu hình Cây gia phả xếp tầng (Hierarchical)
+# Cấu hình Cây gia phả thẳng lối (Hierarchical Layout)
 config = Config(width="100%", height=700, directed=True, physics=False, hierarchical=True, direction="UD")
 
 if nodes:
@@ -94,7 +97,6 @@ if st.session_state["admin_logged_in"]:
         st.session_state["admin_logged_in"] = False
         st.rerun()
         
-    # Đã đảo vị trí "Thêm Người Trực Tiếp" lên đầu tiên
     admin_menu = st.sidebar.radio("Chức năng", ["📝 Thêm Người Trực Tiếp", "📋 Duyệt Dữ Liệu", "✏️ Chỉnh Sửa Dữ Liệu"])
     
     if admin_menu == "📝 Thêm Người Trực Tiếp":
@@ -106,10 +108,9 @@ if st.session_state["admin_logged_in"]:
         except Exception:
             vai_ve_options = ["", "VỢ", "CHỒNG", "VỢ KẾ", "Tạo mới..."]
 
-        # Cơ chế Reset Form an toàn tuyệt đối
-        if "form_key" not in st.session_state:
-            st.session_state.form_key = 0
-        fk = st.session_state.form_key
+        if "form_key_admin" not in st.session_state:
+            st.session_state.form_key_admin = 0
+        fk = st.session_state.form_key_admin
             
         st.subheader("1. Thông tin người trung tâm")
         ten_chinh = st.text_input("Họ Tên*", key=f"tc_{fk}")
@@ -157,12 +158,17 @@ if st.session_state["admin_logged_in"]:
             t_con = st.text_input(f"Họ tên Con {i+1}", key=f"tcon_{i}_{fk}")
             gt_con = st.selectbox(f"Giới tính Con {i+1}", ["NAM", "NỮ", "LGBTQ+"], key=f"gtcon_{i}_{fk}")
             
+            if so_luong_bd > 0:
+                bd_opts = ["Chỉ của người chính / Không rõ"] + [f"Bạn đời {k+1}" for k in range(so_luong_bd)]
+                chon_bd_con = st.selectbox("Là con chung với:", bd_opts, key=f"con_bd_{i}_{fk}")
+            else:
+                chon_bd_con = "Chỉ của người chính / Không rõ"
+            
             c5, c6 = st.columns(2)
             ns_con = c5.text_input(f"Năm sinh Con {i+1}", key=f"nscon_{i}_{fk}")
             nm_con = c6.text_input(f"Năm mất Con {i+1} (nếu có, không rõ ghi 'Không rõ')", key=f"nmcon_{i}_{fk}")
-            con_cai_list.append({"ten": t_con, "gt": gt_con, "ns": ns_con, "nm": nm_con})
+            con_cai_list.append({"ten": t_con, "gt": gt_con, "ns": ns_con, "nm": nm_con, "chon_bd": chon_bd_con})
             
-        # Thay vì form_submit_button, chúng ta dùng nút bấm thông thường
         submit_admin = st.button("🚀 Gửi dữ liệu")
         
         if submit_admin and ten_chinh:
@@ -224,9 +230,15 @@ if st.session_state["admin_logged_in"]:
                     ns_con_str = str(con['ns']).strip()
                     nm_con_str = str(con['nm']).strip()
                     nam_con_final = f"{ns_con_str} - {nm_con_str}" if ns_con_str or nm_con_str else ""
+                    
+                    mqh_con = "CON"
+                    if con["chon_bd"].startswith("Bạn đời"):
+                        bd_idx = con["chon_bd"].split(" ")[2]
+                        mqh_con = f"CON_BD{bd_idx}"
+                        
                     data_raw.append({
                         "Batch_ID": batch_id, "Họ tên": con["ten"].strip().upper(), "Giới tính": con["gt"],
-                        "Năm sinh - Năm mất": nam_con_final, "Mối quan hệ với người chính": "CON", 
+                        "Năm sinh - Năm mất": nam_con_final, "Mối quan hệ với người chính": mqh_con, 
                         "Người chính": ten_chinh.strip().upper(), "Trạng Thái": "Chờ duyệt"
                     })
                     
@@ -237,8 +249,7 @@ if st.session_state["admin_logged_in"]:
             df_existing = df_existing.loc[:, ~df_existing.columns.str.contains('^Unnamed')]
             conn.update(spreadsheet=SHEET_URL, worksheet="Data Raw", data=pd.concat([df_existing, df_new], ignore_index=True))
             
-            # Reset Form sau khi thành công
-            st.session_state.form_key += 1
+            st.session_state.form_key_admin += 1
             st.success("Đã ghi nhận! Ba hãy qua tab 'Duyệt Dữ Liệu' để đẩy chính thức lên cây nhé.")
             st.rerun()
             
@@ -285,8 +296,11 @@ if st.session_state["admin_logged_in"]:
                                 idx_chinh = df_gia_pha.index[-1]
                             
                             new_records = []
+                            spouse_ids = {} # Bộ nhớ lưu ID của các bà vợ/chồng
+                            bd_count = 1
+                            
                             for _, row in df_batch.iterrows():
-                                mqh = row["Mối quan hệ với người chính"]
+                                mqh = str(row["Mối quan hệ với người chính"])
                                 if mqh == "NGƯỜI CHÍNH":
                                     continue
                                     
@@ -304,12 +318,27 @@ if st.session_state["admin_logged_in"]:
                                     df_gia_pha.at[idx_chinh, "ID_Mẹ"] = new_id
                                 elif mqh == "BẠN ĐỜI":
                                     new_record["ID_Bạn đời"] = main_id
-                                elif mqh == "CON":
+                                    # Ghi nhớ ID của bà vợ thứ 1, 2, 3...
+                                    spouse_ids[f"BD{bd_count}"] = {"id": new_id, "gt": row["Giới tính"]}
+                                    bd_count += 1
+                                elif mqh.startswith("CON"):
+                                    # Mặc định luôn là con của Người Chính
                                     if gt_chinh == "NAM":
                                         new_record["ID_Cha"] = main_id
                                     elif gt_chinh == "NỮ":
                                         new_record["ID_Mẹ"] = main_id
                                         
+                                    # Thuật toán tìm đúng Mẹ/Cha thứ 2
+                                    if "_" in mqh: # Ví dụ: CON_BD1
+                                        bd_key = mqh.split("_")[1] # Tách lấy chữ BD1
+                                        if bd_key in spouse_ids:
+                                            sp_id = spouse_ids[bd_key]["id"]
+                                            sp_gt = spouse_ids[bd_key]["gt"]
+                                            if sp_gt == "NAM":
+                                                new_record["ID_Cha"] = sp_id
+                                            elif sp_gt == "NỮ":
+                                                new_record["ID_Mẹ"] = sp_id
+                                            
                                 new_records.append(new_record)
                                 
                             if new_records:
