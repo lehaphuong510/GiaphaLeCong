@@ -80,6 +80,10 @@ st.sidebar.markdown("---")
 if "admin_logged_in" not in st.session_state:
     st.session_state["admin_logged_in"] = False
 
+# Hộp thư tạm để giữ thông báo không bị mất khi load lại trang
+if "admin_msg" not in st.session_state:
+    st.session_state["admin_msg"] = ""
+
 if not st.session_state["admin_logged_in"]:
     pass_input = st.sidebar.text_input("Nhập mật khẩu Admin:", type="password")
     if st.sidebar.button("Đăng nhập") or pass_input:
@@ -95,13 +99,19 @@ if st.session_state["admin_logged_in"]:
         st.session_state["admin_logged_in"] = False
         st.rerun()
         
+    # In ra thông báo thành công (nếu có) rồi xóa đi
+    if st.session_state["admin_msg"]:
+        st.success(st.session_state["admin_msg"])
+        st.session_state["admin_msg"] = ""
+        
     admin_menu = st.sidebar.radio("Chức năng", ["📝 Thêm Người Trực Tiếp", "📋 Duyệt Dữ Liệu", "✏️ Chỉnh Sửa Dữ Liệu"])
     
     if admin_menu == "📝 Thêm Người Trực Tiếp":
         st.subheader("📝 THÊM NGƯỜI VÀO GIA PHẢ")
         
         try:
-            df_phu = conn.read(spreadsheet=SHEET_URL, worksheet="Data phụ")
+            # ttl=0 ép tải mới Data phụ liên tục
+            df_phu = conn.read(spreadsheet=SHEET_URL, worksheet="Data phụ", ttl=0)
             vai_ve_options = [""] + df_phu["Vai vế"].dropna().tolist() + ["Tạo mới..."]
         except Exception:
             vai_ve_options = ["", "VỢ", "CHỒNG", "VỢ KẾ", "Tạo mới..."]
@@ -261,12 +271,14 @@ if st.session_state["admin_logged_in"]:
                     
             df_new = pd.DataFrame(data_raw)
             st.cache_data.clear()
-            df_existing = conn.read(spreadsheet=SHEET_URL, worksheet="Data Raw")
+            
+            # ttl=0 ép tải mới nhất Data Raw
+            df_existing = conn.read(spreadsheet=SHEET_URL, worksheet="Data Raw", ttl=0)
             df_existing = df_existing.loc[:, ~df_existing.columns.str.contains('^Unnamed')]
             conn.update(spreadsheet=SHEET_URL, worksheet="Data Raw", data=pd.concat([df_existing, df_new], ignore_index=True))
             
             st.session_state.form_key_admin += 1
-            st.success("Đã ghi nhận! Ba hãy qua tab 'Duyệt Dữ Liệu' để đẩy chính thức lên cây nhé.")
+            st.session_state["admin_msg"] = "✅ Đã ghi nhận! Ba hãy qua tab 'Duyệt Dữ Liệu' để đẩy chính thức lên cây nhé."
             st.rerun()
             
         elif submit_admin and not ten_chinh:
@@ -274,7 +286,8 @@ if st.session_state["admin_logged_in"]:
 
     elif admin_menu == "📋 Duyệt Dữ Liệu":
         st.subheader("📋 Danh sách chờ duyệt")
-        df_raw = conn.read(spreadsheet=SHEET_URL, worksheet="Data Raw")
+        # ttl=0 chống cache, luôn lấy data mới nhất
+        df_raw = conn.read(spreadsheet=SHEET_URL, worksheet="Data Raw", ttl=0)
         df_cho_duyet = df_raw[df_raw["Trạng Thái"] == "Chờ duyệt"]
         
         if df_cho_duyet.empty:
@@ -287,81 +300,96 @@ if st.session_state["admin_logged_in"]:
                     cols_to_show = [c for c in ["Họ tên", "Mối quan hệ với người chính", "Vai vế", "Giới tính", "Năm sinh - Năm mất"] if c in df_batch.columns]
                     st.dataframe(df_batch[cols_to_show])
                     
-                    if st.button("✅ Duyệt lô này", key=f"btn_{batch}"):
-                        row_chinh = df_batch[df_batch["Mối quan hệ với người chính"] == "NGƯỜI CHÍNH"]
-                        
-                        if not row_chinh.empty:
-                            nguoi_chinh = row_chinh.iloc[0]
-                            ten_chinh = nguoi_chinh["Họ tên"]
-                            gt_chinh = nguoi_chinh["Giới tính"]
+                    # Thêm nút Duyệt và nút Hủy nằm ngang nhau
+                    col_btn1, col_btn2 = st.columns(2)
+                    with col_btn1:
+                        if st.button("✅ Duyệt lô này", key=f"btn_duyet_{batch}"):
+                            row_chinh = df_batch[df_batch["Mối quan hệ với người chính"] == "NGƯỜI CHÍNH"]
                             
-                            match_chinh = df_gia_pha[df_gia_pha["Họ tên"] == ten_chinh]
-                            
-                            if not match_chinh.empty:
-                                idx_chinh = match_chinh.index[0]
-                                main_id = df_gia_pha.at[idx_chinh, "ID"]
-                                gt_chinh = df_gia_pha.at[idx_chinh, "Giới tính"]
-                            else:
-                                main_id = generate_id()
-                                new_row_chinh = {
-                                    "ID": main_id, "Họ tên": ten_chinh, "Giới tính": gt_chinh,
-                                    "Năm sinh - Năm mất": nguoi_chinh.get("Năm sinh - Năm mất", ""),
-                                    "Vai vế": "", "ID_Cha": "", "ID_Mẹ": "", "ID_Bạn đời": ""
-                                }
-                                df_gia_pha = pd.concat([df_gia_pha, pd.DataFrame([new_row_chinh])], ignore_index=True)
-                                idx_chinh = df_gia_pha.index[-1]
-                            
-                            new_records = []
-                            spouse_ids = {}
-                            bd_count = 1
-                            
-                            for _, row in df_batch.iterrows():
-                                mqh = str(row["Mối quan hệ với người chính"])
-                                if mqh == "NGƯỜI CHÍNH":
-                                    continue
-                                    
-                                new_id = generate_id()
-                                new_record = {
-                                    "ID": new_id, "Họ tên": row["Họ tên"], "Giới tính": row["Giới tính"],
-                                    "Năm sinh - Năm mất": row.get("Năm sinh - Năm mất", ""),
-                                    "Vai vế": row.get("Vai vế", ""),
-                                    "ID_Cha": "", "ID_Mẹ": "", "ID_Bạn đời": ""
-                                }
+                            if not row_chinh.empty:
+                                nguoi_chinh = row_chinh.iloc[0]
+                                ten_chinh = nguoi_chinh["Họ tên"]
+                                gt_chinh = nguoi_chinh["Giới tính"]
                                 
-                                if mqh == "CHA":
-                                    df_gia_pha.at[idx_chinh, "ID_Cha"] = new_id
-                                elif mqh == "MẸ":
-                                    df_gia_pha.at[idx_chinh, "ID_Mẹ"] = new_id
-                                elif mqh == "BẠN ĐỜI":
-                                    new_record["ID_Bạn đời"] = main_id
-                                    spouse_ids[f"BD{bd_count}"] = {"id": new_id, "gt": row["Giới tính"]}
-                                    bd_count += 1
-                                elif mqh.startswith("CON"):
-                                    if gt_chinh == "NAM":
-                                        new_record["ID_Cha"] = main_id
-                                    elif gt_chinh == "NỮ":
-                                        new_record["ID_Mẹ"] = main_id
+                                # Đọc Gia phả mới nhất (tránh lỗi nếu duyệt liên tiếp nhiều lô)
+                                df_gia_pha_fresh = conn.read(spreadsheet=SHEET_URL, worksheet="Data Gia Phả", ttl=0)
+                                match_chinh = df_gia_pha_fresh[df_gia_pha_fresh["Họ tên"] == ten_chinh]
+                                
+                                if not match_chinh.empty:
+                                    idx_chinh = match_chinh.index[0]
+                                    main_id = df_gia_pha_fresh.at[idx_chinh, "ID"]
+                                    gt_chinh = df_gia_pha_fresh.at[idx_chinh, "Giới tính"]
+                                else:
+                                    main_id = generate_id()
+                                    new_row_chinh = {
+                                        "ID": main_id, "Họ tên": ten_chinh, "Giới tính": gt_chinh,
+                                        "Năm sinh - Năm mất": nguoi_chinh.get("Năm sinh - Năm mất", ""),
+                                        "Vai vế": "", "ID_Cha": "", "ID_Mẹ": "", "ID_Bạn đời": ""
+                                    }
+                                    df_gia_pha_fresh = pd.concat([df_gia_pha_fresh, pd.DataFrame([new_row_chinh])], ignore_index=True)
+                                    idx_chinh = df_gia_pha_fresh.index[-1]
+                                
+                                new_records = []
+                                spouse_ids = {}
+                                bd_count = 1
+                                
+                                for _, row in df_batch.iterrows():
+                                    mqh = str(row["Mối quan hệ với người chính"])
+                                    if mqh == "NGƯỜI CHÍNH":
+                                        continue
                                         
-                                    if "_" in mqh: 
-                                        bd_key = mqh.split("_")[1] 
-                                        if bd_key in spouse_ids:
-                                            sp_id = spouse_ids[bd_key]["id"]
-                                            sp_gt = spouse_ids[bd_key]["gt"]
-                                            if sp_gt == "NAM":
-                                                new_record["ID_Cha"] = sp_id
-                                            elif sp_gt == "NỮ":
-                                                new_record["ID_Mẹ"] = sp_id
+                                    new_id = generate_id()
+                                    new_record = {
+                                        "ID": new_id, "Họ tên": row["Họ tên"], "Giới tính": row["Giới tính"],
+                                        "Năm sinh - Năm mất": row.get("Năm sinh - Năm mất", ""),
+                                        "Vai vế": row.get("Vai vế", ""),
+                                        "ID_Cha": "", "ID_Mẹ": "", "ID_Bạn đời": ""
+                                    }
+                                    
+                                    if mqh == "CHA":
+                                        df_gia_pha_fresh.at[idx_chinh, "ID_Cha"] = new_id
+                                    elif mqh == "MẸ":
+                                        df_gia_pha_fresh.at[idx_chinh, "ID_Mẹ"] = new_id
+                                    elif mqh == "BẠN ĐỜI":
+                                        new_record["ID_Bạn đời"] = main_id
+                                        spouse_ids[f"BD{bd_count}"] = {"id": new_id, "gt": row["Giới tính"]}
+                                        bd_count += 1
+                                    elif mqh.startswith("CON"):
+                                        if gt_chinh == "NAM":
+                                            new_record["ID_Cha"] = main_id
+                                        elif gt_chinh == "NỮ":
+                                            new_record["ID_Mẹ"] = main_id
                                             
-                                new_records.append(new_record)
+                                        if "_" in mqh: 
+                                            bd_key = mqh.split("_")[1] 
+                                            if bd_key in spouse_ids:
+                                                sp_id = spouse_ids[bd_key]["id"]
+                                                sp_gt = spouse_ids[bd_key]["gt"]
+                                                if sp_gt == "NAM":
+                                                    new_record["ID_Cha"] = sp_id
+                                                elif sp_gt == "NỮ":
+                                                    new_record["ID_Mẹ"] = sp_id
+                                                
+                                    new_records.append(new_record)
+                                    
+                                if new_records:
+                                    df_gia_pha_fresh = pd.concat([df_gia_pha_fresh, pd.DataFrame(new_records)], ignore_index=True)
+                                    
+                                conn.update(spreadsheet=SHEET_URL, worksheet="Data Gia Phả", data=df_gia_pha_fresh)
+                                df_raw.loc[df_raw["Batch_ID"] == batch, "Trạng Thái"] = "Đã duyệt"
+                                conn.update(spreadsheet=SHEET_URL, worksheet="Data Raw", data=df_raw)
                                 
-                            if new_records:
-                                df_gia_pha = pd.concat([df_gia_pha, pd.DataFrame(new_records)], ignore_index=True)
-                                
-                            conn.update(spreadsheet=SHEET_URL, worksheet="Data Gia Phả", data=df_gia_pha)
-                            df_raw.loc[df_raw["Batch_ID"] == batch, "Trạng Thái"] = "Đã duyệt"
+                                st.cache_data.clear() # Dọn dẹp cache cho chắc chắn
+                                st.session_state["admin_msg"] = f"✅ Đã duyệt thành công lô '{batch}' và đẩy lên Cây Gia Phả!"
+                                st.rerun()
+
+                    with col_btn2:
+                        if st.button("❌ Hủy lô này", key=f"btn_huy_{batch}"):
+                            df_raw.loc[df_raw["Batch_ID"] == batch, "Trạng Thái"] = "Đã hủy"
                             conn.update(spreadsheet=SHEET_URL, worksheet="Data Raw", data=df_raw)
                             
-                            st.success("Đã duyệt thành công và cấp ID tự động!")
+                            st.cache_data.clear()
+                            st.session_state["admin_msg"] = f"🗑️ Đã từ chối và hủy bỏ lô dữ liệu '{batch}'."
                             st.rerun()
 
     elif admin_menu == "✏️ Chỉnh Sửa Dữ Liệu":
@@ -369,7 +397,8 @@ if st.session_state["admin_logged_in"]:
         st.info("💡 Hướng dẫn: Click đúp vào ô bất kỳ để sửa. Sửa xong nhớ bấm nút 'Lưu thay đổi' ở bên dưới!")
         
         try:
-            df_hien_tai = conn.read(spreadsheet=SHEET_URL, worksheet="Data Gia Phả")
+            # ttl=0 lấy data mới nhất
+            df_hien_tai = conn.read(spreadsheet=SHEET_URL, worksheet="Data Gia Phả", ttl=0)
             df_chinh_sua = st.data_editor(
                 df_hien_tai, 
                 use_container_width=True,
@@ -379,7 +408,8 @@ if st.session_state["admin_logged_in"]:
             
             if st.button("💾 Lưu thay đổi"):
                 conn.update(spreadsheet=SHEET_URL, worksheet="Data Gia Phả", data=df_chinh_sua)
-                st.success("Đã cập nhật thay đổi thành công! Qua trang Cây Gia Phả để xem kết quả nha.")
+                st.cache_data.clear()
+                st.session_state["admin_msg"] = "✅ Đã cập nhật thay đổi thành công! Mở trang Cây Gia Phả để xem kết quả nha."
                 st.rerun()
                 
         except Exception as e:
